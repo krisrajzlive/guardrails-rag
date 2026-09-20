@@ -92,9 +92,21 @@ Edit `.env`:
 
 ## Run
 
+This is a `src/`-layout project with no `pyproject.toml`/editable install
+(just `requirements.txt`, per uv-only-no-pyproject preference), so Python
+needs to be told where `src/` is via `PYTHONPATH` — `uv run python -m
+guardrails_rag...` on its own will fail with `No module named guardrails_rag`.
+
+PowerShell:
+```powershell
+$env:PYTHONPATH="src"; uv run python -m guardrails_rag.ingest   # build the vector index once
+$env:PYTHONPATH="src"; uv run python -m guardrails_rag.cli       # interactive demo
+```
+
+bash/zsh:
 ```bash
-uv run python -m guardrails_rag.ingest      # build the vector index once
-uv run python -m guardrails_rag.cli         # interactive demo
+PYTHONPATH=src uv run python -m guardrails_rag.ingest
+PYTHONPATH=src uv run python -m guardrails_rag.cli
 ```
 
 ## Try these prompts
