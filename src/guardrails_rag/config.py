@@ -22,3 +22,10 @@ GEN_MODEL = os.getenv("GEN_MODEL", "gpt-4o-mini")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 
 TOP_K = int(os.getenv("TOP_K", "4"))
+
+# Dedicated prompt-injection classifier, hosted via HF Inference API (no local
+# download). Neither guard engine's taxonomy covers injection at all -- see
+# README "Verified end-to-end" -- so this always runs as a third input-gate
+# check regardless of GUARD_ENGINE.
+INJECTION_MODEL = os.getenv("INJECTION_MODEL", "protectai/deberta-v3-base-prompt-injection-v2")
+INJECTION_THRESHOLD = float(os.getenv("INJECTION_THRESHOLD", "0.75"))

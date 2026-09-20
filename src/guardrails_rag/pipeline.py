@@ -3,8 +3,10 @@
     user query
        │
        ▼
-  [INPUT GATE]  the guard engine classifies the raw user prompt
-       │  unsafe → refuse, never touches the retriever or the LLM
+  [INPUT GATE]  (a) the guard engine classifies the raw user prompt
+                (b) dedicated prompt-injection classifier ALWAYS runs too --
+                    neither guard engine's taxonomy covers injection at all
+       │  either flags it → refuse, never touches the retriever or the LLM
        ▼ safe
   LlamaIndex retrieval  +  LangChain generation
        │
@@ -18,7 +20,9 @@
 
 The guard engine is pluggable (see config.GUARD_ENGINE): "openai_moderation"
 (default -- hosted, no local model download/inference) or "llama_guard"
-(local Llama-Guard-3-1B inference via transformers).
+(local Llama-Guard-3-1B inference via transformers). The injection
+classifier (prompt_injection.py) is hosted via the HF Inference API and runs
+regardless of GUARD_ENGINE.
 """
 from __future__ import annotations
 
@@ -26,6 +30,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import config, ingest, rag_chain, secret_scrubber
+from .prompt_injection import get_classifier
 
 
 def get_guard():
@@ -43,6 +48,7 @@ class PipelineResult:
     block_stage: str | None
     input_verdict: Any  # llama_guard.GuardVerdict or openai_moderation.GuardVerdict
     output_verdict: Any | None
+    injection_verdict: Any  # prompt_injection.InjectionVerdict
     secrets_redacted: dict[str, int]
 
 
@@ -51,15 +57,30 @@ REFUSAL = "I can't help with that request."
 
 def run(query: str, top_k: int = 4) -> PipelineResult:
     guard = get_guard()
+    injection_classifier = get_classifier()
 
     input_verdict = guard.check_input(query)
+    injection_verdict = injection_classifier.check(query)
+
     if not input_verdict.is_safe:
         return PipelineResult(
             answer=REFUSAL,
             blocked=True,
-            block_stage="input_gate",
+            block_stage="input_gate_guard",
             input_verdict=input_verdict,
             output_verdict=None,
+            injection_verdict=injection_verdict,
+            secrets_redacted={},
+        )
+
+    if injection_verdict.is_injection:
+        return PipelineResult(
+            answer=REFUSAL,
+            blocked=True,
+            block_stage="input_gate_injection",
+            input_verdict=input_verdict,
+            output_verdict=None,
+            injection_verdict=injection_verdict,
             secrets_redacted={},
         )
 
@@ -76,6 +97,7 @@ def run(query: str, top_k: int = 4) -> PipelineResult:
             block_stage="output_gate_guard",
             input_verdict=input_verdict,
             output_verdict=output_verdict,
+            injection_verdict=injection_verdict,
             secrets_redacted=scrub_result.hits,
         )
 
@@ -85,5 +107,6 @@ def run(query: str, top_k: int = 4) -> PipelineResult:
         block_stage=None,
         input_verdict=input_verdict,
         output_verdict=output_verdict,
+        injection_verdict=injection_verdict,
         secrets_redacted=scrub_result.hits,
     )

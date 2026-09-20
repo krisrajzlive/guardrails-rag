@@ -12,6 +12,8 @@ Type a question, or 'quit'. Try the sample attacks in README.md.
 def _print_result(result: pipeline.PipelineResult) -> None:
     print(f"[INPUT GATE]  safe={result.input_verdict.is_safe} "
           f"categories={result.input_verdict.category_names or '-'}")
+    print(f"[INJECTION]   is_injection={result.injection_verdict.is_injection} "
+          f"score={result.injection_verdict.score:.4f}")
     if result.output_verdict is not None:
         print(f"[OUTPUT GATE] safe={result.output_verdict.is_safe} "
               f"categories={result.output_verdict.category_names or '-'}")
