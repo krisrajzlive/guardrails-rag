@@ -66,8 +66,9 @@ class LlamaGuard:
 
     def _run_chat(self, chat: list[dict]) -> str:
         self._load()
-        input_ids = self._tokenizer.apply_chat_template(chat, return_tensors="pt")
-        output = self._model.generate(input_ids=input_ids, max_new_tokens=20, pad_token_id=0)
+        encoded = self._tokenizer.apply_chat_template(chat, return_tensors="pt", return_dict=True)
+        input_ids = encoded["input_ids"]
+        output = self._model.generate(**encoded, max_new_tokens=20, pad_token_id=0, do_sample=False)
         generated = output[0][input_ids.shape[-1]:]
         return self._tokenizer.decode(generated, skip_special_tokens=True).strip()
 
@@ -81,14 +82,18 @@ class LlamaGuard:
             categories = [c.strip() for c in lines[1].split(",") if c.strip()]
         return GuardVerdict(is_safe=False, categories=categories, raw=raw)
 
+    @staticmethod
+    def _msg(role: str, text: str) -> dict:
+        # The model's chat template expects multimodal-style content parts
+        # ([{"type": "text", "text": ...}]) -- a plain string silently renders
+        # an empty conversation block instead of raising.
+        return {"role": role, "content": [{"type": "text", "text": text}]}
+
     def check_input(self, user_text: str) -> GuardVerdict:
-        return self._parse(self._run_chat([{"role": "user", "content": user_text}]))
+        return self._parse(self._run_chat([self._msg("user", user_text)]))
 
     def check_output(self, user_text: str, assistant_text: str) -> GuardVerdict:
-        chat = [
-            {"role": "user", "content": user_text},
-            {"role": "assistant", "content": assistant_text},
-        ]
+        chat = [self._msg("user", user_text), self._msg("assistant", assistant_text)]
         return self._parse(self._run_chat(chat))
 
 
