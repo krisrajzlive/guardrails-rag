@@ -14,7 +14,10 @@ SOURCE_PDF = DATA_DIR / "vendor_nda.pdf"
 HF_TOKEN = os.getenv("HF_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+# "openai_moderation" (hosted, no local inference) or "llama_guard" (local transformers)
+GUARD_ENGINE = os.getenv("GUARD_ENGINE", "openai_moderation")
 GUARD_MODEL_ID = os.getenv("GUARD_MODEL_ID", "meta-llama/Llama-Guard-3-1B")
+MODERATION_MODEL = os.getenv("MODERATION_MODEL", "omni-moderation-latest")
 GEN_MODEL = os.getenv("GEN_MODEL", "gpt-4o-mini")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 

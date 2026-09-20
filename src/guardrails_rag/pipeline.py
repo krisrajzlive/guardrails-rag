@@ -3,25 +3,37 @@
     user query
        │
        ▼
-  [INPUT GATE]  Llama Guard 3 1B classifies the raw user prompt
+  [INPUT GATE]  the guard engine classifies the raw user prompt
        │  unsafe → refuse, never touches the retriever or the LLM
        ▼ safe
   LlamaIndex retrieval  +  LangChain generation
        │
        ▼
-  [OUTPUT GATE] (a) Llama Guard 3 1B classifies (prompt, answer)
+  [OUTPUT GATE] (a) the guard engine classifies the generated answer
                 (b) regex secret_scrubber ALWAYS redacts credentials/PII,
-                    independent of the Llama Guard verdict (defense in depth)
+                    independent of the guard verdict (defense in depth)
        │
        ▼
     final answer or refusal, with the verdicts surfaced to the caller
+
+The guard engine is pluggable (see config.GUARD_ENGINE): "openai_moderation"
+(default -- hosted, no local model download/inference) or "llama_guard"
+(local Llama-Guard-3-1B inference via transformers).
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
-from . import ingest, rag_chain, secret_scrubber
-from .llama_guard import GuardVerdict, get_guard
+from . import config, ingest, rag_chain, secret_scrubber
+
+
+def get_guard():
+    if config.GUARD_ENGINE == "llama_guard":
+        from .llama_guard import get_guard as _get_guard
+    else:
+        from .openai_moderation import get_guard as _get_guard
+    return _get_guard()
 
 
 @dataclass
@@ -29,8 +41,8 @@ class PipelineResult:
     answer: str
     blocked: bool
     block_stage: str | None
-    input_verdict: GuardVerdict
-    output_verdict: GuardVerdict | None
+    input_verdict: Any  # llama_guard.GuardVerdict or openai_moderation.GuardVerdict
+    output_verdict: Any | None
     secrets_redacted: dict[str, int]
 
 
@@ -61,7 +73,7 @@ def run(query: str, top_k: int = 4) -> PipelineResult:
         return PipelineResult(
             answer=REFUSAL,
             blocked=True,
-            block_stage="output_gate_llama_guard",
+            block_stage="output_gate_guard",
             input_verdict=input_verdict,
             output_verdict=output_verdict,
             secrets_redacted=scrub_result.hits,
